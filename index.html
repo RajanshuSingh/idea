@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart File Tool Suite</title>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: linear-gradient(135deg, #1a001f, #2d004d);
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-y: auto;
+    }
+    .container {
+      position: relative;
+      width: 460px;
+      padding: 30px;
+      border-radius: 20px;
+      background: rgba(30, 0, 50, 0.9);
+      text-align: center;
+      box-shadow: 0 0 40px rgba(180, 90, 255, 0.3);
+      margin: 40px 0;
+    }
+    .container::before {
+      content: "";
+      position: absolute;
+      inset: -3px;
+      border-radius: 20px;
+      background: linear-gradient(270deg, red, orange, yellow, green, cyan, blue, violet, red);
+      background-size: 400%;
+      animation: rotate 5s linear infinite;
+      z-index: -1;
+    }
+    @keyframes rotate {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    h1 {
+      font-size: 1.5em;
+      margin-bottom: 20px;
+      color: #fff;
+    }
+    .drop-zone {
+      border: 2px dashed #bbb;
+      border-radius: 10px;
+      padding: 30px;
+      margin-bottom: 20px;
+      color: #ccc;
+      transition: 0.3s;
+    }
+    .drop-zone.dragover { background: rgba(255, 255, 255, 0.1); border-color: #fff; }
+    input, button {
+      width: 100%;
+      margin-top: 10px;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      outline: none;
+      font-size: 1em;
+      font-family: inherit;
+    }
+    input { background: rgba(255,255,255,0.1); color: #fff; }
+    input::placeholder { color: #aaa; }
+    button {
+      background: linear-gradient(45deg, #9b5eff, #ff7de9);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover { opacity: 0.9; transform: scale(1.05); }
+    #output {
+      margin-top: 15px;
+      font-size: 0.9em;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Smart File Tool Suite 🧠</h1>
+
+    <div class="drop-zone" id="dropZone">📁 Drag & Drop a .txt or .pdf<br>or click to upload</div>
+    <input type="file" id="fileInput" accept=".txt,.pdf" hidden />
+    <input type="text" id="findText" placeholder="Find word..." />
+    <input type="text" id="replaceText" placeholder="Replace with..." />
+    <button id="replaceBtn">Replace & Download</button>
+    <button id="txtToPdfBtn">Convert TXT → PDF</button>
+    <button id="pdfToTxtBtn">Convert PDF → TXT</button>
+
+    <hr style="margin:20px 0; border:1px solid rgba(255,255,255,0.2)" />
+    <h2 style="font-size:1.1em;">Extra Tools</h2>
+
+    <input type="file" id="mergePdfInput" accept=".pdf" multiple />
+    <button id="mergePdfBtn">Merge PDFs</button>
+
+    <input type="file" id="imgToPdfInput" accept="image/*" multiple />
+    <button id="imgToPdfBtn">Images → PDF</button>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const replaceBtn = document.getElementById('replaceBtn');
+    const txtToPdfBtn = document.getElementById('txtToPdfBtn');
+    const pdfToTxtBtn = document.getElementById('pdfToTxtBtn');
+    const mergePdfBtn = document.getElementById('mergePdfBtn');
+    const imgToPdfBtn = document.getElementById('imgToPdfBtn');
+    const output = document.getElementById('output');
+
+    let fileBuffer = null, fileName = "", fileType = "";
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+    function handleFile(file) {
+      if (!file) return;
+      fileName = file.name.split('.').slice(0, -1).join('.');
+      fileType = file.name.split('.').pop().toLowerCase();
+      const reader = new FileReader();
+      reader.onload = e => {
+        fileBuffer = e.target.result;
+        output.textContent = `✅ Loaded: ${file.name}`;
+      };
+      if (fileType === 'txt') reader.readAsText(file);
+      else reader.readAsArrayBuffer(file);
+    }
+
+    replaceBtn.addEventListener('click', async () => {
+      const findWord = document.getElementById('findText').value;
+      const replaceWord = document.getElementById('replaceText').value;
+      if (!fileBuffer) return alert('Please upload a file first!');
+      if (!findWord) return alert('Enter a word to find!');
+      if (fileType === 'txt') {
+        const newText = fileBuffer.split(findWord).join(replaceWord);
+        downloadFile(newText, `${fileName}_modified.txt`, 'text/plain');
+        output.textContent = `✅ Replaced all "${findWord}" with "${replaceWord}"`;
+      } else if (fileType === 'pdf') {
+        await replaceInPDF(fileBuffer, findWord, replaceWord);
+      }
+    });
+
+    async function replaceInPDF(arrayBuffer, findWord, replaceWord) {
+      const { PDFDocument, StandardFonts, rgb } = PDFLib;
+      const pdfDoc = await PDFDocument.load(arrayBuffer);
+      const pages = pdfDoc.getPages();
+      for (const page of pages) {
+        const { height } = page.getSize();
+        const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+        page.drawText(`Modified: '${findWord}' → '${replaceWord}'`, {
+          x: 40, y: height - 40, size: 10, color: rgb(0.9, 0.6, 1)
+        });
+      }
+      const modifiedPdf = await pdfDoc.save();
+      downloadFile(modifiedPdf, `${fileName}_modified.pdf`, 'application/pdf');
+    }
+
+    txtToPdfBtn.addEventListener('click', async () => {
+      if (!fileBuffer || fileType !== 'txt') return alert('Upload a TXT file first!');
+      const { PDFDocument, StandardFonts, rgb } = PDFLib;
+      const pdfDoc = await PDFDocument.create();
+      const page = pdfDoc.addPage([595, 842]);
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const lines = fileBuffer.split('\n');
+      let y = 800;
+      for (const line of lines) {
+        page.drawText(line, { x: 50, y, size: 12, font, color: rgb(1, 1, 1) });
+        y -= 16;
+      }
+      const pdfBytes = await pdfDoc.save();
+      downloadFile(pdfBytes, `${fileName}.pdf`, 'application/pdf');
+      output.textContent = `✅ Converted TXT → PDF`;
+    });
+
+    pdfToTxtBtn.addEventListener('click', async () => {
+      if (!fileBuffer || fileType !== 'pdf') return alert('Upload a PDF file first!');
+      const pdfData = new Uint8Array(fileBuffer);
+      const text = await extractTextFromPDF(pdfData);
+      downloadFile(text, `${fileName}.txt`, 'text/plain');
+      output.textContent = `✅ Converted PDF → TXT`;
+    });
+
+    async function extractTextFromPDF(pdfData) {
+      const loadingTask = pdfjsLib.getDocument({ data: pdfData });
+      const pdf = await loadingTask.promise;
+      let allText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        allText += textContent.items.map(item => item.str).join(' ') + '\n';
+      }
+      return allText;
+    }
+
+    async function mergePDFs(files) {
+      const { PDFDocument } = PDFLib;
+      const mergedPdf = await PDFDocument.create();
+      for (const file of files) {
+        const bytes = await file.arrayBuffer();
+        const pdf = await PDFDocument.load(bytes);
+        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+        copiedPages.forEach(p => mergedPdf.addPage(p));
+      }
+      const mergedBytes = await mergedPdf.save();
+      downloadFile(mergedBytes, 'merged.pdf', 'application/pdf');
+      output.textContent = `✅ Merged ${files.length} PDFs`;
+    }
+
+    mergePdfBtn.addEventListener('click', async () => {
+      const files = document.getElementById('mergePdfInput').files;
+      if (!files.length) return alert('Select PDF files to merge!');
+      await mergePDFs(files);
+    });
+
+    imgToPdfBtn.addEventListener('click', async () => {
+      const files = document.getElementById('imgToPdfInput').files;
+      if (!files.length) return alert('Select images to convert!');
+      const { PDFDocument } = PDFLib;
+      const pdfDoc = await PDFDocument.create();
+      for (const file of files) {
+        const bytes = await file.arrayBuffer();
+        const image = await pdfDoc.embedJpg(bytes).catch(() => pdfDoc.embedPng(bytes));
+        const { width, height } = image.scale(1);
+        const page = pdfDoc.addPage([width, height]);
+        page.drawImage(image, { x: 0, y: 0, width, height });
+      }
+      const pdfBytes = await pdfDoc.save();
+      downloadFile(pdfBytes, 'images_to_pdf.pdf', 'application/pdf');
+      output.textContent = `✅ Converted ${files.length} Images → PDF`;
+    });
+
+    function downloadFile(content, name, type) {
+      const blob = new Blob([content], { type });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = name;
+      link.click();
+    }
+  </script>
+</body>
+</html>
